@@ -1,0 +1,116 @@
+local StarterGui = game:GetService("StarterGui")
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+local pfp = Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
+
+-- [Settings]:
+local TARGET_USERNAME = "FluxedGaming"  -- Replace this with the target player's username
+local lerpSpeed = 5  -- Adjust this value to change the smoothing effect
+local distance = -10  -- Z-offset behind the target
+local L_R = 0         -- X-offset (left/right)
+local U_D = 0         -- Y-offset (up/down)
+local collisionOffset = 0.5  -- How far from the hit surface the camera should stay
+
+local isCustomCamEnabled = false  -- Toggle state for custom camera
+
+local dgui = Instance.new("ScreenGui")
+local outline = Instance.new("Frame")
+local tb = Instance.new("TextBox")
+local uic = Instance.new("UICorner")
+uic.Parent = tb
+tb.Size = UDim2.new(0.1, 0, 0.1, 0)
+tb.Position = UDim2.new(0.03, 0, 0.8, 0)
+tb.BackgroundColor3 = Color3.fromRGB(213, 213, 213)
+outline.Size = UDim2.new(0.11, 0, 0.12, 0)
+outline.Position = UDim2.new(0.025, 0, 0.79, 0)
+outline.BackgroundColor3 = Color3.fromRGB(49, 49, 49)
+outline.ZIndex = -1
+ouic = uic:Clone()
+ouic.CornerRadius = UDim.new(0, 10)
+ouic.Parent = outline
+tb.TextColor3 = Color3.fromRGB(26, 26, 26)
+tb.TextSize = 24
+tb.Font = Enum.Font.PermanentMarker
+tb.PlaceholderText = "Enter Distance"
+tb.Text = "-10"
+tb.Parent = dgui
+outline.Parent = dgui
+
+RunService.Heartbeat:Connect(function()
+	distance = tb.Text.format(tonumber(tb.Text))
+end)
+
+dgui.Parent = Players.LocalPlayer.PlayerGui
+
+-- Raycast parameters (ignore the target's character to avoid self-collision)
+local raycastParams = RaycastParams.new()
+raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+-- Function to locate the correct player's head by their username
+local function getTargetHead()
+	for _, player in pairs(Players:GetPlayers()) do
+		if player.Name == TARGET_USERNAME and player.Character and player.Character:FindFirstChild("Head") then
+			-- Update the raycast filter to ignore this character
+			raycastParams.FilterDescendantsInstances = player.Character:GetDescendants()
+			return player.Character.Head
+		end
+	end
+	return nil
+end
+
+StarterGui:SetCore("SendNotification", {
+	Title = "Thank you :D",
+	Text = "Thanks for using my script! Have Fun! :D",
+	Icon = "rbxassetid://13453509654",
+	Duration = 3
+})
+
+StarterGui:SetCore("SendNotification", {
+	Title = "Success!",
+	Text = "Press C to activate! Enjoy! :3",
+	Icon = pfp,
+	Duration = 3
+})
+
+-- Toggle Function
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if not gameProcessed and input.KeyCode == Enum.KeyCode.C then
+		isCustomCamEnabled = not isCustomCamEnabled
+		if not isCustomCamEnabled then
+			Camera.CameraSubject = Players.LocalPlayer.Character.Humanoid
+			Camera.CameraType = Enum.CameraType.Custom
+		else
+			Camera.CameraType = Enum.CameraType.Scriptable
+		end
+	end
+end)
+
+-- Main loop to update camera position with collision detection
+RunService.RenderStepped:Connect(function(delta)
+	if isCustomCamEnabled then
+		local targetHead = getTargetHead()
+		if targetHead then
+			-- Calculate desired camera position relative to the target's head
+			local relativeOffset = CFrame.new(L_R, U_D, distance)  -- Offset in local space (X, Y, Z)
+			local desiredPosition = (targetHead.CFrame * relativeOffset).Position
+
+			-- Perform a raycast from the target head to the desired position
+			local direction = desiredPosition - targetHead.Position
+			local raycastResult = workspace:Raycast(targetHead.Position, direction, raycastParams)
+
+			if raycastResult then
+				-- If something is hit, reposition the camera to be just in front of the obstacle
+				desiredPosition = raycastResult.Position + raycastResult.Normal * collisionOffset
+			end
+
+			-- Smoothly interpolate the camera's current position toward the (possibly adjusted) desired position
+			local currentPosition = Camera.CFrame.Position
+			local newCameraPos = currentPosition:Lerp(desiredPosition, math.clamp(lerpSpeed * delta, 0, 1))
+
+			-- Update the camera's CFrame to look at the target's head
+			Camera.CFrame = CFrame.new(newCameraPos, targetHead.Position)
+		end
+	end
+end)
