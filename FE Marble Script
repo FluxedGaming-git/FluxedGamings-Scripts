@@ -1,6 +1,10 @@
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local Camera = workspace.CurrentCamera
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 --[Settings]:
 local SPEED_MULTIPLIER = 30
 local JUMP_POWER = 60
@@ -8,59 +12,83 @@ local JUMP_GAP = 0.3
 local BallSize = 8
 local BallTransparency = 0.6
 ---------------------------------------
-local character = game.Players.LocalPlayer.Character
+local function setupCharacter(character)
+    for i,v in ipairs(character:GetDescendants()) do
+        if v:IsA("BasePart") then
+            v.CanCollide = false
+        end
+    end
 
-for i,v in ipairs(character:GetDescendants()) do
-	if v:IsA("BasePart") then
-		v.CanCollide = false
-	end
+    local ball = character.HumanoidRootPart
+    ball.Shape = Enum.PartType.Ball
+    ball.Size = Vector3.new(BallSize,BallSize,BallSize)
+    ball.Transparency = BallTransparency
+    ball.BottomSurface = Enum.SurfaceType.Smooth
+    ball.TopSurface = Enum.SurfaceType.Smooth
+    ball.Color = Color3.fromRGB(math.random(0, 255), math.random(0, 255), math.random(0, 255))
+    
+    local humanoid = character:WaitForChild("Humanoid")
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+    params.FilterDescendantsInstances = {character}
+
+    local tc
+    tc = RunService.RenderStepped:Connect(function(delta)
+        ball.CanCollide = true
+        humanoid.PlatformStand = true
+        if UserInputService:GetFocusedTextBox() then return end
+        if UserInputService:IsKeyDown("W") then
+            ball.RotVelocity -= Camera.CFrame.RightVector * delta * SPEED_MULTIPLIER
+        end
+        if UserInputService:IsKeyDown("A") then
+            ball.RotVelocity -= Camera.CFrame.LookVector * delta * SPEED_MULTIPLIER
+        end
+        if UserInputService:IsKeyDown("S") then
+            ball.RotVelocity += Camera.CFrame.RightVector * delta * SPEED_MULTIPLIER
+        end
+        if UserInputService:IsKeyDown("D") then
+            ball.RotVelocity += Camera.CFrame.LookVector * delta * SPEED_MULTIPLIER
+        end
+    end)
+
+    UserInputService.JumpRequest:Connect(function()
+        local result = workspace:Raycast(
+            ball.Position,
+            Vector3.new(
+                0,
+                -((ball.Size.Y/2)+JUMP_GAP),
+                0
+            ),
+            params
+        )
+        if result then
+            ball.Velocity = ball.Velocity + Vector3.new(0,JUMP_POWER,0)
+        end
+    end)
+
+    Camera.CameraSubject = ball
+    humanoid.Died:Connect(function()
+        tc:Disconnect()
+    end)
+
+    -- Kill Switch for script
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if gameProcessed then return end
+        if input.KeyCode == Enum.KeyCode.Backspace then
+            -- Destroy the script on backspace
+            script:Destroy()
+        end
+    end)
 end
 
-local ball = character.HumanoidRootPart
-ball.Shape = Enum.PartType.Ball
-ball.Size = Vector3.new(BallSize,BallSize,BallSize)
-ball.Transparency = BallTransparency
-ball.BottomSurface = Enum.SurfaceType.Smooth
-ball.TopSurface = Enum.SurfaceType.Smooth
-ball.Color = Color3.fromRGB(math.random(0, 255), math.random(0, 255), math.random(0, 255))
-local humanoid = character:WaitForChild("Humanoid")
-local params = RaycastParams.new()
-params.FilterType = Enum.RaycastFilterType.Blacklist
-params.FilterDescendantsInstances = {character}
-
-local tc = RunService.RenderStepped:Connect(function(delta)
-	ball.CanCollide = true
-	humanoid.PlatformStand = true
-	if UserInputService:GetFocusedTextBox() then return end
-	if UserInputService:IsKeyDown("W") then
-		ball.RotVelocity -= Camera.CFrame.RightVector * delta * SPEED_MULTIPLIER
-	end
-	if UserInputService:IsKeyDown("A") then
-		ball.RotVelocity -= Camera.CFrame.LookVector * delta * SPEED_MULTIPLIER
-	end
-	if UserInputService:IsKeyDown("S") then
-		ball.RotVelocity += Camera.CFrame.RightVector * delta * SPEED_MULTIPLIER
-	end
-	if UserInputService:IsKeyDown("D") then
-		ball.RotVelocity += Camera.CFrame.LookVector * delta * SPEED_MULTIPLIER
-	end
-	--ball.RotVelocity = ball.RotVelocity - Vector3.new(0,ball.RotVelocity.Y/50,0)
+-- Re-run the script when respawning
+LocalPlayer.CharacterAdded:Connect(function(character)
+    -- Wait for the character to fully load
+    character:WaitForChild("HumanoidRootPart")
+    setupCharacter(character)
 end)
 
-UserInputService.JumpRequest:Connect(function()
-	local result = workspace:Raycast(
-		ball.Position,
-		Vector3.new(
-			0,
-			-((ball.Size.Y/2)+JUMP_GAP),
-			0
-		),
-		params
-	)
-	if result then
-		ball.Velocity = ball.Velocity + Vector3.new(0,JUMP_POWER,0)
-	end
-end)
-
-Camera.CameraSubject = ball
-humanoid.Died:Connect(function() tc:Disconnect() end)
+-- If the character already exists (in case the script is running after the initial load)
+if LocalPlayer.Character then
+    setupCharacter(LocalPlayer.Character)
+end
