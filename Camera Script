@@ -6,7 +6,7 @@ local Camera = workspace.CurrentCamera
 local pfp = Players:GetUserThumbnailAsync(Players.LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
 
 -- [Settings]:
-local TARGET_USERNAME = "FluxedGaming"  -- Replace this with the target player's username
+local TARGET_USERNAME = Players.LocalPlayer.Name  -- Replace this with the target player's username
 local lerpSpeed = 5  -- Adjust this value to change the smoothing effect
 local distance = -10  -- Z-offset behind the target
 local L_R = 0         -- X-offset (left/right)
